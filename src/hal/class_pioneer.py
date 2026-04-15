@@ -4,6 +4,14 @@ sys.path.append("coppeliasim_zmqremoteapi/")
 from coppeliasim_zmqremoteapi_client import *
 import numpy as np
 
+ROBOT = {
+    'L' : 0.331, #m
+    'VELSTD' : 1.0 #m/s
+
+    
+}
+
+
 class PioneerP3DX:
     def __init__(self, parameters):
         self.parameters = parameters
@@ -11,10 +19,28 @@ class PioneerP3DX:
         # inicia simulador
         self.initCoppeliaSim()
         
+        self.id = parameters['robot_id']
+
         # tempo
         self.t = 0.0
         self.tinit = 0.0
         self.dt = 0.0
+
+        # estados do robô
+        self.v = 0
+        self.v_ant = 0
+        self.vref = 0
+        self. a = 0
+        self.th = 0
+        self.p = None
+        self.t = self.tinit
+
+        # filtros
+        self.v_maf = MAFilter()
+        self.a_maf = MAFilter()
+        self.vref_maf = MAFilter()
+        self.wref_maf = MAFilter()
+        self.w_maf = MAFilter()
     
     # inicializa interação com o CoppeliaSim
     def initCoppeliaSim(self):
@@ -35,6 +61,19 @@ class PioneerP3DX:
         print('motorLeft handle  :', self.motorLeft)
         print('motorRight handle :',self.motorRight)
 
+        self.lidar = self.sim.getObject(robot_name+'/VelodyneVPL16')
+
+    # captura os estados do robo
+    def getStates(self):
+        self.v_ant = self.v
+        self.v, self.w = self.getVel()
+        self.a = self.getAccel()
+        self.th = self.getYaw()
+        self.p = self.getPos()
+        self.t = self.getTime() - self.tinit
+
+        return self.p, self.v, self.a, self.th, self.w, self.t
+
     # Começa a missão
     def startMission(self):
 
@@ -48,8 +87,8 @@ class PioneerP3DX:
         self.tinit = self.getTime()
 
         # começa parado
-        self.setU(0.0)
-        self.setSteer(0.0)
+        self.setULeft(0.0)
+        self.setURight(0.0)
 
         # salva trajetoria
         self.saveTraj()
@@ -84,7 +123,7 @@ class PioneerP3DX:
 					'vref'  : self.vref,
 					'th'    : self.th,
 					'w'     : self.w,
-					'u'     : self.u}
+				}
 				
 		# se ja iniciou as trajetorias
         try:
@@ -118,7 +157,7 @@ class PioneerP3DX:
         while yaw < 0.0:
             yaw += 2.0*np.pi
         while yaw > 2.0*np.pi:
-            yaw -= 2.0*np.piecewise
+            yaw -= 2.0*np.pi
         return yaw
     
     # converte quaternion -> yaw
@@ -137,19 +176,59 @@ class PioneerP3DX:
     
     # retorna velocidades linear e angular
     def getVel(self):
-        pass
+        lin, ang = self.sim.getObjectVelocity(self.robot)
+        v_lin = np.linalg.norm(lin[:2])  # norma da velocidade linear no plano XY
+        
+        v = self.v_maf.filter(v_lin)
+        
+        w = self.w_maf.filter(ang[2])
+
+        return v, w
 
     # retorna aceleração
     def getAccel(self):
-        pass
+        if self.dt == 0.0:
+            return 0.0
+        
+        a = (self.v - self.v_ant)/self.dt
+
+        a = self.a_maf.filter(a)
+
+        return a
     
     # seta torque da roda esquerda
-    def setUleft(self, u):
-        pass
+    def setULeft(self, u):
+        while True:
+            status = self.sim.setJointTargetVelocity(self.motorLeft, u)
+            if status == 1:
+                break
 
     # seta torque da roda direita
-    def setUleft(self, u):
-        pass
+    def setURight(self, u):
+        while True:
+            status = self.sim.setJointTargetVelocity(self.motorRight, u)
+            if status == 1:
+                break
+
+    # calcula a vel diferencial das rodas a partir de w
+    def diffVel(self, w):
+        L = ROBOT['L']
+        vel_right =  (w * L) / 2.0
+        vel_left  = -(w * L) / 2.0
+        return vel_left, vel_right
+
+
+    # seta velocidades
+    def setVel(self, vref, wref):
+        self.vref = self.vref_maf.filter(vref)     
+        self.wref = self.wref_maf.filter(wref) 
+
+        # vel_lin = (Vl + Vr)/2 e Vl = Vr
+        l_diff, r_diff = self.diffVel(wref)
+        self.setULeft(self.vref + l_diff)
+        self.setURight(self.vref + r_diff)
+        
+
 
     # salva
     def save(self, log):
@@ -164,4 +243,24 @@ class PioneerP3DX:
 		
         print ('Programa terminado!')
 
-pnr = PioneerP3DX('jooj')
+
+# Filtro de média móvel
+class MAFilter:
+    def __init__(self, alpha=0.5):
+        self.alpha = alpha
+        self.alpha = np.clip(self.alpha, 0.0, 1.0)
+        self.m = 0.0
+
+    def filter(self, m):
+        try:
+            self.m = self.alpha*m + (1.0-self.alpha)*self.m
+        except:
+            print('erro...')
+            self.m = m
+		
+        return self.m
+
+
+
+
+pnr = PioneerP3DX({'robot_id': 0})
