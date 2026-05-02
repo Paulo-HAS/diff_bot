@@ -7,7 +7,7 @@ import numpy as np
 import time
 import sys
 
-import class_pioneer as cp
+import scripts.hal.class_pioneer as cp
 
 
 #########################################

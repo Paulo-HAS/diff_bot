@@ -7,7 +7,6 @@ import numpy as np
 ROBOT = {
     'L' : 0.331, #m
     'VELSTD' : 1.0 #m/s
-
     
 }
 
