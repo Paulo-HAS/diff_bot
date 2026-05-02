@@ -29,6 +29,8 @@ class PioneerP3DX:
         self.v = 0
         self.v_ant = 0
         self.vref = 0
+        self.w = 0
+        self.w_ant = 0
         self. a = 0
         self.th = 0
         self.p = None
@@ -60,7 +62,6 @@ class PioneerP3DX:
         print('motorLeft handle  :', self.motorLeft)
         print('motorRight handle :',self.motorRight)
 
-        self.lidar = self.sim.getObject(robot_name+'/VelodyneVPL16')
 
     # captura os estados do robo
     def getStates(self):

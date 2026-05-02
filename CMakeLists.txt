@@ -165,7 +165,7 @@ include_directories(
 # )
 
 catkin_install_python(PROGRAMS
-  src/hal/diff_hal.py
+  scripts/hal/robot_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

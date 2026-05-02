@@ -7,7 +7,10 @@ import numpy as np
 import time
 import sys
 
-import scripts.hal.class_pioneer as cp
+import sys
+sys.path.insert(1, '/home/paulo/movimentacao_ws/src/diff_bot/scripts/hal')
+
+from class_pioneer import PioneerP3DX
 
 
 #########################################
@@ -35,7 +38,7 @@ class RobotInterface:
         
 
         try:
-            self.robot = cp.PioneerP3DX(parameters)
+            self.robot = PioneerP3DX(parameters)
             self.robot.startMission()
         except Exception as e:
             print(f"Erro ao inicializar o Pioneer: {e}")
@@ -57,6 +60,7 @@ class RobotInterface:
 
         while not rospy.is_shutdown():
             self.drive(v, w)
+            #self.drive(2, 2)    #teste de simulação
             self.robot.step()
             rate.sleep()
             rospy.loginfo(f"vel linear: {self.robot.getVel()[0]:.2f} | | vel angular: {self.robot.getVel()[1]:.2f}")
@@ -84,6 +88,7 @@ if __name__ == "__main__":
         # subscriber
         rospy.Subscriber('diff_robot_planner', Twist, velCallBack)
         rospy.loginfo("Iniciando modulo de interface do Pioneer P3DX...")
+
         ri.run()
     except rospy.ROSInterruptException:
         rospy.loginfo("Encerrando modulo de interface de Pioneer P3DX...")

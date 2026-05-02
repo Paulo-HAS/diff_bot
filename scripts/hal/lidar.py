@@ -15,7 +15,14 @@ MAX_RANGE = 0   # alcance máximo
 MIN_ANG = 0     # angulo minimo
 MAX_ANG = 0     # angulo maximo
 
+class Lidar:
+    def __init__(self):
+        self.client = RemoteAPIClient()
+        self.sim = self.client.require('sim')
+        self.robot_name = '/PioneerP3DX'  #nome do robô na simulação
+        self.sensor = self.sim.getObject(self.robot_name+'/VelodyneVPL16')
 
+        
 
 
 
