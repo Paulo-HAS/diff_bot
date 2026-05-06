@@ -259,8 +259,3 @@ class MAFilter:
             self.m = m
 		
         return self.m
-
-
-
-
-pnr = PioneerP3DX({'robot_id': 0})

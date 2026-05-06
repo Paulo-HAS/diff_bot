@@ -51,6 +51,10 @@ class RobotInterface:
     def getVel(self):
         self.robot.getVel()
 
+    # função para obter q = SE(2) <vou precisar publicar isso para o planner> 
+    def getQ(self):
+        pass
+
     def run(self):
         global v, w
         #Parametros do robo e do simulador
@@ -63,7 +67,7 @@ class RobotInterface:
             #self.drive(2, 2)    #teste de simulação
             self.robot.step()
             rate.sleep()
-            rospy.loginfo(f"vel linear: {self.robot.getVel()[0]:.2f} | | vel angular: {self.robot.getVel()[1]:.2f}")
+            #rospy.loginfo(f"vel linear: {self.robot.getVel()[0]:.2f} | | vel angular: {self.robot.getVel()[1]:.2f}")
 
         self.robot.stopMission()
 
@@ -74,8 +78,8 @@ class RobotInterface:
 # callback do subscriber
 def velCallBack(cmd_vel):
     global v, w
-    v = cmd_vel.linear.x
-    w = cmd_vel.angular.z
+    v = cmd_vel.linear
+    w = cmd_vel.angular
 
 if __name__ == "__main__":
     ri = RobotInterface()
@@ -86,7 +90,7 @@ if __name__ == "__main__":
         # node
         rospy.init_node('diff_robot', anonymous=True)
         # subscriber
-        rospy.Subscriber('diff_robot_planner', Twist, velCallBack)
+        rospy.Subscriber('tangent_bug/cmd_vel', Twist, velCallBack)
         rospy.loginfo("Iniciando modulo de interface do Pioneer P3DX...")
 
         ri.run()
