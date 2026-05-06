@@ -8,7 +8,9 @@ from tf.transformations import euler_from_quaternion
 
 from sensor_msgs.msg import LaserScan
 
-goal = np.array([0.0, 0.0])    #goal (x, y)
+SYS_RATE = 15
+
+goal = np.array([10.0, 10.0])    #goal (x, y)
 pose = np.array([0.0, 0.0])    #config atual (x, y)
 p_err = 0.3                    #Tolerancia de erro de posição (m)
 yaw = 0.0                      #yaw em rad
@@ -17,7 +19,7 @@ d_followed = np.inf            #menor distância entre goal e o contorno que foi
 d_reach = np.inf               #menor distancia entre goal e o obstáculo dentro do campo de visão do robô
 last_motion_ang = 0            # angulo do ultimo movimento executado
 wstar = 0.8                    #distancia de segurança para formar W*
-Vmax = 100                     #Velocidade máxima do robo
+Vmax = 1.0                #Velocidade máxima do robo
 tan_list = []
 bound_pos = []
 
@@ -26,16 +28,16 @@ scan_data = None
 
 class TangentBug:
     def __init__(self):
-        self.v = Twist.linear 
-        self.w = Twist.angular
-        self.Kp = 0                 # ganho prporcional do controlador de trajetoria
+        self.v = 0
+        self.w = 0
+        self.Kp = 0.1               # ganho prporcional do controlador de trajetoria
         self.state = "mtg" # mtg = motion-to-goal || bf = boundary-following
 
     # Obtem a direção do q goal no frame do referencial do mundo
     def direct2goal(self):
         global pose, yaw, goal
     
-        ang = np.atan2(goal[1] - pose[1], goal[0] - pose[0]) - yaw
+        ang = np.arctan2(goal[1] - pose[1], goal[0] - pose[0]) - yaw
         ang = (ang + np.pi) % (2 * np.pi) - np.pi # obtem angulo no range de -pi a pi
     
         return ang
@@ -82,7 +84,7 @@ class TangentBug:
         ranges = scan_data.ranges
         coord = np.empty((len(conts), 2))
         for i, x in enumerate(conts):
-            coord[i, :] = self.range2coord(ranges, int(x))
+            coord[i, :] = self.range2coord(int(x))
 
         return coord
 
@@ -97,6 +99,8 @@ class TangentBug:
         d2g = self.direct2goal()
 
         conts = self.check_cont()
+        reg_num = None
+        blocking = False
         
         # itera entre regiões de continuidade encontradas e verifica se interceptam a direção para goal
         for i, region in enumerate(conts):
@@ -215,6 +219,7 @@ class TangentBug:
     #Controlador de trajetoria
     def traj_controller(self, vx=0, vy=0):
         global goal, pose, yaw, Vmax
+        d = 0.1
         u1 = vx + self.Kp * (goal[0] - pose[0])
         u2 = vy + self.Kp * (goal[1] - pose[1])
         Vtot = np.sqrt(u1**2 + u2**2)
@@ -234,7 +239,8 @@ class TangentBug:
 
     #Controlador de trajetoria por velocidade
     def traj_controller2(vx, vy):
-        global  yaw, Vmax, d
+        global  yaw, Vmax
+        d = 0.1
         u1 = vx
         u2 = vy
         Vtot = np.sqrt(u1**2 + u2**2)
@@ -249,7 +255,7 @@ class TangentBug:
         vw = np.linalg.inv(A) @ [[u1], [u2]]
         v = float(vw[0])
         w = float(vw[1])
-        
+
         return v, w
 
     # comportamento motion-to-goal
@@ -257,7 +263,7 @@ class TangentBug:
 
         global scan_data, d_followed, last_motion_ang, tan_list
         ranges = scan_data.ranges
-        conts = self.check_cont(ranges)
+        conts = self.check_cont()
         blocking, reg_num = self.obstacle_blocking()
         
         if blocking:
@@ -321,8 +327,15 @@ class TangentBug:
     ###############################
     #Roda a o tangent bug
     def run(self):
-        global pose, goal, p_err
-        if np.linalg.norm(pose[0] - goal[0], pose[1] - goal[1]) < p_err and self.state != 'goal':
+        global pose, goal, p_err, scan_data
+
+        rate = rospy.Rate(SYS_RATE)
+
+        if scan_data == None:
+            return
+
+
+        if np.linalg.norm([pose[0] - goal[0], pose[1] - goal[1]]) < p_err and self.state != 'goal':
             self.state = 'goal'
 
         if self.state == 'mtg':
@@ -342,6 +355,7 @@ class TangentBug:
         else:
             print('Invalid State|||||||||')
             
+        rate.sleep()
 
 
     def getPlanVel(self):
@@ -386,8 +400,9 @@ class TangentBugNode:
 
     def publishMove(self, linear, angular):
         cmd_vel = Twist()
-        cmd_vel.linear = linear
-        cmd_vel.angular = angular
+        print(f'vel: {linear} || {angular}')
+        cmd_vel.linear.x = linear
+        cmd_vel.angular.z = angular
         self.pub_cmd_vel.publish(cmd_vel)
             
 

@@ -9,4 +9,11 @@
             output="screen" />
 
 
+<!-- Tangent Bug -->
+      
+      <node pkg="diff_bot"
+            type="tangentbug.py"
+            name="tangent_bug"
+            output="screen" />
+
 </launch>

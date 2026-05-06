@@ -78,8 +78,8 @@ class RobotInterface:
 # callback do subscriber
 def velCallBack(cmd_vel):
     global v, w
-    v = cmd_vel.linear
-    w = cmd_vel.angular
+    v = cmd_vel.linear.x
+    w = cmd_vel.angular.z
 
 if __name__ == "__main__":
     ri = RobotInterface()
