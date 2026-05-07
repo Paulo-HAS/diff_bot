@@ -18,7 +18,7 @@ v = 0
 w = 0
 
 # Classe da Logica
-class PathFollower:
+class Hybrid:
     def __init__(self):
         self.rate = rospy.Rate(SYS_RATE)
 
@@ -96,18 +96,19 @@ class PathFollower:
 
         self.rate.sleep()
         
+        
 
 
 
 
 # Node do planner
-class PathFollowerNode:
+class HybridNode:
     def __init__(self):
         rospy.init_node("path_follower")
         rospy.Subscriber("/odom", Odometry, self.odomCallback)
         self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         
-        self.pf = PathFollower()
+        self.hy = Hybrid()
 
     def odomCallback(self, data):
         global pose, yaw, d_goal
@@ -128,7 +129,7 @@ class PathFollowerNode:
     def runFollower(self):
         global v, w  
         while not rospy.is_shutdown():  
-            self.pf.run()
+            self.hy.run()
             self.publishMove(v,w)
 
     def publishMove(self, linear, angular):
@@ -141,8 +142,8 @@ class PathFollowerNode:
 
 if __name__ == '__main__':
     try:
-        pfn = PathFollowerNode()
-        pfn.runFollower()
+        hyn = HybridNode()
+        hyn.runFollower()
     except rospy.ROSInterruptException:
         pass
 
