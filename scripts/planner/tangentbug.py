@@ -14,12 +14,12 @@ goal = np.array([10.0, 10.0])    #goal (x, y)
 pose = np.array([0.0, 0.0])    #config atual (x, y)
 p_err = 0.3                    #Tolerancia de erro de posição (m)
 yaw = 0.0                      #yaw em rad
-d_goal = []                    #vetor de distancia atual do robô com goal
+d_goal = np.inf                    #vetor de distancia atual do robô com goal
 d_followed = np.inf            #menor distância entre goal e o contorno que foi scaneado   
 d_reach = np.inf               #menor distancia entre goal e o obstáculo dentro do campo de visão do robô
 last_motion_ang = 0            # angulo do ultimo movimento executado
 wstar = 0.8                    #distancia de segurança para formar W*
-Vmax = 1.0                #Velocidade máxima do robo
+Vmax = 30.0                #Velocidade máxima do robo
 tan_list = []
 bound_pos = []
 
@@ -30,7 +30,7 @@ class TangentBug:
     def __init__(self):
         self.v = 0
         self.w = 0
-        self.Kp = 0.1               # ganho prporcional do controlador de trajetoria
+        self.Kp = 0.3               # ganho prporcional do controlador de trajetoria
         self.state = "mtg" # mtg = motion-to-goal || bf = boundary-following
 
     # Obtem a direção do q goal no frame do referencial do mundo
@@ -238,11 +238,12 @@ class TangentBug:
         return v, w
 
     #Controlador de trajetoria por velocidade
-    def traj_controller2(vx, vy):
+    def traj_controller2(self, vx, vy):
         global  yaw, Vmax
         d = 0.1
         u1 = vx
         u2 = vy
+        
         Vtot = np.sqrt(u1**2 + u2**2)
         if (Vtot > Vmax):
             u1 = u1 * Vmax / Vtot
@@ -261,7 +262,7 @@ class TangentBug:
     # comportamento motion-to-goal
     def motion2goal(self):
 
-        global scan_data, d_followed, last_motion_ang, tan_list
+        global goal, scan_data, d_followed, last_motion_ang, tan_list
         ranges = scan_data.ranges
         conts = self.check_cont()
         blocking, reg_num = self.obstacle_blocking()
@@ -344,6 +345,8 @@ class TangentBug:
             self.v, self.w = self.boundary_following()
         elif self.state == 'goal':
             print('_\|/_GOAL REACHED!!!!')
+            self.v = 0
+            self.w = 0
             com = input('Enter a new goal value (X Y) to keep going or pre Ctrl+C to Exit: ')
             goal = com
             print(f'New goal: {goal}')
@@ -378,13 +381,15 @@ class TangentBugNode:
         pose[1] = data.pose.pose.position.y
 
         orientation = data.pose.pose.orientation
-        _, _, self.yaw = euler_from_quaternion([
+        _, _, yaw = euler_from_quaternion([
             orientation.x,
             orientation.y,
             orientation.z,
             orientation.w
         ])
-        d_goal(np.linalg.norm(pose - goal))
+
+        print(f'pose: ({pose[0]} {pose[1]})/_ {yaw}')
+        d_goal = np.linalg.norm(pose - goal)
 
 
 
@@ -400,7 +405,7 @@ class TangentBugNode:
 
     def publishMove(self, linear, angular):
         cmd_vel = Twist()
-        print(f'vel: {linear} || {angular}')
+        #print(f'vel: {linear} || {angular}')
         cmd_vel.linear.x = linear
         cmd_vel.angular.z = angular
         self.pub_cmd_vel.publish(cmd_vel)

@@ -2,7 +2,8 @@
 
 import rospy
 from std_msgs.msg import Float64
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Quaternion
+from nav_msgs.msg import Odometry
 import numpy as np
 import time
 import sys
@@ -55,7 +56,35 @@ class RobotInterface:
     def getQ(self):
         pass
 
-    def run(self):
+    def publishOdom(self, odom_pub):
+        odom = Odometry()
+
+        # posição
+        pos = self.robot.getPos()
+        odom.pose.pose.position.x = float(pos[0])
+        odom.pose.pose.position.y = float(pos[1])
+        odom.pose.pose.position.z = 0.0
+
+        # orientação (quaternion)
+        q = self.robot.getYawRaw()
+
+        odom.pose.pose.orientation = Quaternion(
+            x=float(q[0]),
+            y=float(q[1]),
+            z=float(q[2]),
+            w=float(q[3])
+        )
+
+        # (opcional, mas recomendado)
+        odom.twist.twist.linear.x, odom.twist.twist.angular.z = self.robot.getVel()
+
+        # header (MUITO IMPORTANTE em ROS)
+        odom.header.stamp = rospy.Time.now()
+        odom.header.frame_id = "odom"
+
+        odom_pub.publish(odom)
+
+    def run(self, odom_pub):
         global v, w
         #Parametros do robo e do simulador
         rospy.set_param('FREQSIM', FREQ_SIM)
@@ -65,6 +94,7 @@ class RobotInterface:
         while not rospy.is_shutdown():
             self.drive(v, w)
             #self.drive(2, 2)    #teste de simulação
+            self.publishOdom(odom_pub)
             self.robot.step()
             rate.sleep()
             #rospy.loginfo(f"vel linear: {self.robot.getVel()[0]:.2f} | | vel angular: {self.robot.getVel()[1]:.2f}")
@@ -91,8 +121,9 @@ if __name__ == "__main__":
         rospy.init_node('diff_robot', anonymous=True)
         # subscriber
         rospy.Subscriber('tangent_bug/cmd_vel', Twist, velCallBack)
+        odom_pub = rospy.Publisher('/odom', Odometry, queue_size=10)
         rospy.loginfo("Iniciando modulo de interface do Pioneer P3DX...")
 
-        ri.run()
+        ri.run(odom_pub)
     except rospy.ROSInterruptException:
         rospy.loginfo("Encerrando modulo de interface de Pioneer P3DX...")

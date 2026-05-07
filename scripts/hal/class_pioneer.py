@@ -145,6 +145,15 @@ class PioneerP3DX:
             if (pos != -1):
                 return np.array((pos[0], pos[1]))
     
+    # direção na forma de quaternion
+    def getYawRaw(self):
+        while True:
+            q =self.sim.getObjectQuaternion(self.robot, -1)
+            if (q != -1):
+                break
+        
+        return q
+
     # retorna yaw
     def getYaw(self):
         while True:
