@@ -123,7 +123,7 @@ class TangentBug:
         ranges = scan_data.ranges
         obs_mat = np.empty((len(conts_list), 2))
         for i, x in enumerate(conts_list):
-            obs_mat[i, :] = self.range2coord(ranges, int(x))
+            obs_mat[i, :] = self.range2coord(int(x))
 
         return obs_mat
 
@@ -137,9 +137,9 @@ class TangentBug:
         for lims in region:
             lim_inf, lim_sup = lims
             idxs = np.unique(np.linspace(lim_inf, lim_sup, -(-3*(lim_sup - lim_inf) // 4) + 1, dtype=int))
-            reg_idx = np.r_[np.array(reg_idx), idxs]
+            reg_i = np.r_[np.array(reg_i), idxs]
 
-        oi_mat = self.obs_coord(reg_idx)
+        oi_mat = self.obs_coord(reg_i)
         pos_vec = np.array([pose[0], pose[1]])
         norm_mat = np.linalg.norm(pos_vec - oi_mat, axis=1) ** 2
         min_idx = np.argmin(norm_mat)
@@ -376,7 +376,7 @@ class TangentBugNode:
         self.tb = TangentBug()
 
     def odomCallback(self, data):
-        global pose, yaw
+        global pose, yaw, d_goal
         pose[0] = data.pose.pose.position.x
         pose[1] = data.pose.pose.position.y
 
