@@ -371,7 +371,7 @@ class TangentBugNode:
         rospy.init_node("tangent_bug")
         rospy.Subscriber('/hokuyo', LaserScan, self.scanCallback)
         rospy.Subscriber("/odom", Odometry, self.odomCallback)
-        self.pub_cmd_vel = rospy.Publisher('tangent_bug/cmd_vel', Twist, queue_size=10)
+        self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         
         self.tb = TangentBug()
 

@@ -120,7 +120,7 @@ if __name__ == "__main__":
         # node
         rospy.init_node('diff_robot', anonymous=True)
         # subscriber
-        rospy.Subscriber('tangent_bug/cmd_vel', Twist, velCallBack)
+        rospy.Subscriber('/cmd_vel', Twist, velCallBack)
         odom_pub = rospy.Publisher('/odom', Odometry, queue_size=10)
         rospy.loginfo("Iniciando modulo de interface do Pioneer P3DX...")
 

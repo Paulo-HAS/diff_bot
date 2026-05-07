@@ -19,7 +19,6 @@ v = 0
 w = 0
 
 p_err = 0.3                    #Tolerancia de erro de posição (m)
-Vmax = 30.0                #Velocidade máxima do robo
 Kp = 0.3
 
 # Classe da Logica
@@ -33,8 +32,11 @@ class PathFollower:
         self.dt_path = 0.02
 
         # Ganhos do controlador
-        self.k_linear = 1.0     #linear
-        self.k_angular = 4.0    #angular
+        self.k_linear = 10.0     #linear
+        self.k_angular = 40.0    #angular
+
+        self.max_linear = 30.0
+        self.max_angular = 30.0
 
 
     # Gera a curva (lemniscata de Gerono) por equações paramétricas
@@ -105,7 +107,7 @@ class PathFollowerNode:
         rospy.init_node("path_follower")
         rospy.Subscriber('/hokuyo', LaserScan, self.scanCallback)
         rospy.Subscriber("/odom", Odometry, self.odomCallback)
-        self.pub_cmd_vel = rospy.Publisher('path_follower/cmd_vel', Twist, queue_size=10)
+        self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         
         self.pf = PathFollower()
 
@@ -122,7 +124,7 @@ class PathFollowerNode:
             orientation.w
         ])
 
-        print(f'pose: ({pose[0]} {pose[1]}) /_ {yaw}')
+        #print(f'pose: ({pose[0]} {pose[1]}) /_ {yaw}')
 
 
 
@@ -133,12 +135,12 @@ class PathFollowerNode:
     def runFollower(self):
         global v, w  
         while not rospy.is_shutdown():  
-            self.fb.run()
+            self.pf.run()
             self.publishMove(v,w)
 
     def publishMove(self, linear, angular):
         cmd_vel = Twist()
-        #print(f'vel: {linear} || {angular}')
+        print(f'vel: {linear} || {angular}')
         cmd_vel.linear.x = linear
         cmd_vel.angular.z = angular
         self.pub_cmd_vel.publish(cmd_vel)
