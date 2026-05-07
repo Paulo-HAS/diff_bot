@@ -1,0 +1,19 @@
+<launch>
+
+
+<!-- HAL -->
+
+      <node pkg="diff_bot"
+            type="robot_node.py"
+            name="robot_node"
+            output="screen" />
+
+
+<!-- Curve Follower -->
+      
+      <node pkg="diff_bot"
+            type="potential.py"
+            name="potential_bot"
+            output="screen" />
+
+</launch>

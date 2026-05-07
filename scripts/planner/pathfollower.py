@@ -14,12 +14,8 @@ SYS_RATE = 15
 
 pose = np.array([0.0, 0.0])    #config atual (x, y)
 yaw = 0.0                      #yaw em rad
-scan_data = None
 v = 0
 w = 0
-
-p_err = 0.3                    #Tolerancia de erro de posição (m)
-Kp = 0.3
 
 # Classe da Logica
 class PathFollower:
@@ -35,8 +31,8 @@ class PathFollower:
         self.k_linear = 10.0     #linear
         self.k_angular = 40.0    #angular
 
-        self.max_linear = 30.0
-        self.max_angular = 30.0
+        self.max_linear = 10.0
+        self.max_angular = 10.0
 
 
     # Gera a curva (lemniscata de Gerono) por equações paramétricas
@@ -77,23 +73,23 @@ class PathFollower:
         theta_error = self.normalize_angle(theta_ref - yaw)
 
         # Controle
-        linear_velocity = self.k_linear * distance_error
-        angular_velocity = self.k_angular * theta_error
+        linear= self.k_linear * distance_error
+        angular = self.k_angular * theta_error
 
         # Saturação das velocidades
-        linear_velocity = np.clip(
-            linear_velocity,
+        linear = np.clip(
+            linear,
             -self.max_linear,
             self.max_linear
         )
-        angular_velocity = np.clip(
-            angular_velocity,
+        angular = np.clip(
+            angular,
             -self.max_angular,
             self.max_angular
         )
 
-        v = linear_velocity
-        w = angular_velocity
+        v = linear
+        w = angular
 
         self.rate.sleep()
         
@@ -105,7 +101,6 @@ class PathFollower:
 class PathFollowerNode:
     def __init__(self):
         rospy.init_node("path_follower")
-        rospy.Subscriber('/hokuyo', LaserScan, self.scanCallback)
         rospy.Subscriber("/odom", Odometry, self.odomCallback)
         self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         
@@ -126,11 +121,6 @@ class PathFollowerNode:
 
         #print(f'pose: ({pose[0]} {pose[1]}) /_ {yaw}')
 
-
-
-    def scanCallback(self, data):
-        global scan_data
-        scan_data = data
 
     def runFollower(self):
         global v, w  

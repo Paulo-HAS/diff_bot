@@ -350,7 +350,7 @@ class TangentBug:
             com = input('Enter a new goal value (X Y) to keep going or pre Ctrl+C to Exit: ')
             goal = com
             print(f'New goal: {goal}')
-            d_goal = []              
+            d_goal = 0              
             d_followed = np.inf 
             d_reach = np.inf  
             bound_pos = []
