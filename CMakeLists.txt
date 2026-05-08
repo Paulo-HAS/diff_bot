@@ -170,6 +170,11 @@ catkin_install_python(PROGRAMS
 )
 
 catkin_install_python(PROGRAMS
+  scripts/hal/robot_node2.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+catkin_install_python(PROGRAMS
   scripts/planner/tangentbug.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
@@ -186,6 +191,11 @@ catkin_install_python(PROGRAMS
 
 catkin_install_python(PROGRAMS
   scripts/planner/hybrid.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+catkin_install_python(PROGRAMS
+  scripts/planner/hybrid2.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

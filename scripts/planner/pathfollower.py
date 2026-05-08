@@ -22,7 +22,7 @@ class PathFollower:
     def __init__(self):
         self.rate = rospy.Rate(SYS_RATE)
 
-        self.a = 2.0    #Paramtero da curva
+        self.a = 6.0    #Paramtero da curva
 
         self.t = 0.0
         self.dt_path = 0.02
@@ -44,13 +44,7 @@ class PathFollower:
         x_ref = self.a * np.sin(t)
         y_ref = self.a * np.sin(t) * np.cos(t)
 
-        dx_dt = self.a * np.cos(t)
-
-        dy_dt = self.a * (
-            np.cos(t)**2 - np.sin(t)**2
-        )
-
-        return x_ref, y_ref, dx_dt, dy_dt
+        return x_ref, y_ref
     
     def normalize_angle(self, angle):
 
@@ -66,7 +60,7 @@ class PathFollower:
         global v,w, pose, yaw
         
         if self.distance_error < 0.5:
-            self.x_ref, self.y_ref, dx_dt, dy_dt = self.generate_path(self.t)
+            self.x_ref, self.y_ref = self.generate_path(self.t)
             self.t += self.dt_path
 
         error_x = self.x_ref - pose[0]

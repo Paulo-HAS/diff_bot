@@ -10,7 +10,7 @@ from sensor_msgs.msg import LaserScan
 
 SYS_RATE = 15
 
-goal = np.array([10.0, 10.0])    #goal (x, y)
+goal = np.array([-9.1, -2.6])    #goal (x, y)
 pose = np.array([0.0, 0.0])    #config atual (x, y)
 p_err = 0.3                    #Tolerancia de erro de posição (m)
 yaw = 0.0                      #yaw em rad
@@ -22,6 +22,7 @@ wstar = 0.8                    #distancia de segurança para formar W*
 Vmax = 30.0                #Velocidade máxima do robo
 tan_list = []
 bound_pos = []
+check_loop = 0
 
 scan_data = None
 
@@ -30,7 +31,7 @@ class TangentBug:
     def __init__(self):
         self.v = 0
         self.w = 0
-        self.Kp = 0.3               # ganho prporcional do controlador de trajetoria
+        self.Kp = 0.4             # ganho prporcional do controlador de trajetoria
         self.state = "mtg" # mtg = motion-to-goal || bf = boundary-following
 
     # Obtem a direção do q goal no frame do referencial do mundo
@@ -45,7 +46,7 @@ class TangentBug:
     # checa por continuidades no scan
     def check_cont(self):
         global scan_data
-        max_dist = scan_data.range_max
+        max_dist = scan_data.range_max/5
         ranges = scan_data.ranges
         # recebe os indices do scan que possuem range menor que o máximo (superfície)
         cont_i= np.nonzero(np.array(ranges) < max_dist)[0]
@@ -220,8 +221,8 @@ class TangentBug:
     def traj_controller(self, vx=0, vy=0):
         global goal, pose, yaw, Vmax
         d = 0.1
-        u1 = vx + self.Kp * (goal[0] - pose[0])
-        u2 = vy + self.Kp * (goal[1] - pose[1])
+        u1 = self.Kp * (goal[0] - pose[0])
+        u2 = self.Kp * (goal[1] - pose[1])
         Vtot = np.sqrt(u1**2 + u2**2)
         if (Vtot > Vmax):
             u1 = u1 * Vmax / Vtot
@@ -292,7 +293,7 @@ class TangentBug:
 
     #ccomportamento boundary-following
     def boundary_following(self):
-        global pose, p_err, goal, d_followed, tan_list, bound_pos
+        global pose, p_err, goal, d_followed, tan_list, bound_pos, check_loop
         cont_lims = self.check_cont()
 
         if not cont_lims:
@@ -388,7 +389,7 @@ class TangentBugNode:
             orientation.w
         ])
 
-        print(f'pose: ({pose[0]} {pose[1]})/_ {yaw}')
+        #print(f'pose: ({pose[0]} {pose[1]})/_ {yaw}')
         d_goal = np.linalg.norm(pose - goal)
 
 
@@ -415,8 +416,6 @@ if __name__ == '__main__':
     try:
         tbn = TangentBugNode()
 
-        goal[0] = 10.0
-        goal[1] = 10.0
         tbn.runBug()
     except rospy.ROSInterruptException:
         pass
