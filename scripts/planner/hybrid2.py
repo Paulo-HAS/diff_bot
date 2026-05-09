@@ -164,7 +164,6 @@ class Hybrid:
             -self.max_angular,
             self.max_angular
         )
-        print(goal)
         v = linear
         w = angular
 

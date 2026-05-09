@@ -11,7 +11,7 @@ import sys
 import sys
 sys.path.insert(1, '/home/paulo/movimentacao_ws/src/diff_bot/scripts/hal')
 
-from class_pioneer import PioneerP3DX
+from class_pioneer2 import PioneerP3DX
 
 
 #########################################

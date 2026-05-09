@@ -50,7 +50,7 @@ class PioneerP3DX:
         self.client = RemoteAPIClient()
         self.sim = self.client.getObject('sim')
 
-        robot_name = '/PioneerP3DX'  #nome do robô na simulação
+        robot_name = '/PioneerP3DX_2'  #nome do robô na simulação
 
         self.robot = self.sim.getObject(robot_name)
         if self.robot == -1:
