@@ -84,6 +84,7 @@ class RobotInterface:
 
         odom_pub.publish(odom)
 
+
     def run(self, odom_pub):
         global v, w
         #Parametros do robo e do simulador
