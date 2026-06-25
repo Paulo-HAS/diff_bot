@@ -1,56 +1,249 @@
 import rospy
 import numpy as np
+import math
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 
 
-SYS_RATE = 15
+SYS_RATE = 15       # Frequência de execução
+MAP_SIZE = 25       #Tamanho do mapa (n x n)
+
+GOAL = (22, 22)     # celula de destino
+
+class Cell:
+    def __init__(self, position, g, h, parent=None):
+        self.pos = position
+        self.parent = parent
+        self.g = g # Custo do início até este nó
+        self.h = h # Custo estimado deste nó até o objetivo (Heurística)
+        self.f = g + h # Custo total (g + h)
+
+class Astar:
+    def __init_(self, grid):
+        self.q_start = None
+        self.q_goal = None
+        self.O = []
+        self.C = []
+
+        self.grid = grid
+
+        self.max_y = len(grid)
+        self.max_x = len(grid[0])
+
+    def search(self, start, goal):
+
+        directions = [
+            ( 0, -1),   #cima
+            ( 0,  1),   #baixo
+            (-1,  0),   #esquerda
+            ( 1,  0),   #direita
+            (-1, -1),   #cima-esquerda
+            ( 1, -1),   #cima-direita
+            ( 1,  1),   #baixo-direita
+            (-1,  1)    #baixo-esquerda
+        ]
+
+        self.O.append(start)
+        while len(self.O) > 0:
+            u = self.O.pop(0)
+
+            if u.pos == goal.pos:
+                path = []
+                route = u
+                while route is not None:
+                    path.append(u.pos)
+                    route = u.parent
+                return path[::-1]   # Inverte a ordem, obtendo o caminho de start até goal
 
 
-#######################
-# Discretização do ambiente
-#######################
+            if u not in self.C:
+                self.C.append(u)
+                for dir in directions:  #verifica a vizinhança
+                    n_pos = (u.pos[0] + dir[0], u.pos[1] + dir[1])
 
+                    # verifica se atravessou a borda
+                    if n_pos[0] >(self.max_x - 1) or n_pos[0] < 0 or n_pos[1] > (self.max_y - 1) or n_pos[1] < 0:
+                        continue
 
+                    # verifica se é obstáculo
+                    if self.grid[n_pos[0], n_pos[1]] != 0:
+                        continue
 
-start = (0, 0)                          # posição inicial
-goal = (0, 0)                           # posição objetivo
+                    # verifica se ja está na lista fechada C
+                    c_check = False
+                    for c in self.C:
+                        if c.pos == n_pos:
+                            c_check = True
+                            break
+                    if c_check:
+                        continue
 
-class DMap():
+                    # cria o nó com os custos e adiciona a lista aberta O
+                    cost = 1.414 if dir[0] != 0 and dir[1] != 0 else 1.0
+                    n_g = u.g + cost
+                    n_h = abs(n_pos[0] - goal.pos[0]) + abs(n_pos[1] - goal.pos[1])     # Heurística: Distância de Manhattan
+                    n_cell = Cell(n_pos, n_g, n_h, u)
+                    
+                    self.O.append(n_cell)
+                    
+        return  None    # Retorna nada caso não exista um caminho
+
+# Node do planner
+class NavNode:
     def __init__(self):
-        self.resolution = 0.5                        # Resolução do mapeamento
-        self.grid = [[0] * 25 for _ in range(25)]    # grid do mapeamento (mapa do simulador é 25x25m centrado na origem do mundo, logo será uma matriz 25x25)
-        
-    #gera obstáculos no mapa
-    def genOi(self): 
-        for i in range(10):
-            self.grid[0][j] = 1
+        rospy.init_node("a_star", anonymous = True)
+        rospy.Subscriber("/odom", Odometry, self.odomCallback)
+        self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+
+        # Cria um grid 25x25 vazio (preenchido com 0)
+        self.grid = [[0 for _ in range(MAP_SIZE)] for _ in range(MAP_SIZE)]
+
+        # Adicionando alguns obstáculos (1)
+        self.grid[5][5:20] = [1] * 15 # Uma parede horizontal
+        for i in range(10, 20):
+            self.grid[i][10] = 1 # Uma parede vertical
+
+        self.AS = Astar(self.grid)
+
+        # Estado do robô
+        self.x = 0.0
+        self.y = 0.0
+        self.yaw = 0.0
+        self.odom_received = False
+
+        self.grid_res = 1.0     # tamanho de cada celula do grid e metros
+        self.tolerance = 0.2    # Tolerância de posicionamento do robô em uma célula
+
+        # Ganhos do controlador
+        self.kp_linear = 0.5
+        self.kp_angular = 1.5
+        self.max_linear_vel = 0.8   # m/s
+        self.max_angular_vel = 1.0  # rad/s
+
+        self.rate = rospy.Rate(SYS_RATE)
+
+
+    def odomCallback(self, data):
+        """Atualiza a posição do robô com base na odometria."""
+        self.x = data.pose.pose.position.x - MAP_SIZE/2
+        self.y = data.pose.pose.position.y - MAP_SIZE/2
+
+        orientation = data.pose.pose.orientation
+        _, _, self.yaw = euler_from_quaternion([
+            orientation.x,
+            orientation.y,
+            orientation.z,
+            orientation.w
+        ])
+
+        self.odom_received = True
+
+    def world_to_grid(self, wx, wy):
+        """Converte coordenadas em metros para índice do array."""
+        return (int(round(wx / self.grid_res)), int(round(wy / self.grid_res)))
+
+    def grid_to_world(self, gx, gy):
+        """Converte índice do array para coordenadas em metros."""
+        return (gx * self.grid_res, gy * self.grid_res)
     
-    # retorna o mapa
-    def getMap(self):
-        return self.grid
+    def control(self, target_x, target_y):
+        """Controlador P simples para levar o robô até uma coordenada (X,Y)"""
+        rospy.loginf(f"Indo para o waypoint: ({target_x:.2f}, {target_y:.2f})")
         
+        while not rospy.is_shutdown():
+            # Distância e angulo até o alvo
+            dx = target_x - self.x
+            dy = target_y - self.y
+            distance = math.hypot(dx, dy)
 
-class Astar():
-    def __init__(self):
-        self._O = []
-
-    # busca os nós da vizinhança do nó v
-    def search (self, v):
-        self._O.append(v)
-        u = []
-
-        neighbors{
-            (-1, 0),  # cima
-            (1, 0),   # baixo
-            (0, -1),  # esquerda
-            (0, 1)    # direita
-        }
-
-        while self._O is not []:
+            if distance < self.tolerance:
+                return True
+            
+            # Erro de angulo
+            target_heading = math. atan2(dy, dx)
+            heading_erro = target_heading - self.yaw
 
 
-        
+            #  Normalizando o erro angular entre pi e -pi
+            heading_error = math.atan2(math.sin(heading_error), math.cos(heading_error))
+
+            cmd_vel = Twist()
+
+            # Logica de controle
+            # Se o robô está muito desalinhado, gire primeiro antes de avançar muito
+            if abs(heading_error) > 0.5: # Aprox 30 graus
+                cmd_vel.linear.x = 0.0
+                cmd_vel.angular.z = self.kp_angular * heading_error
+            else:
+                # Proporcional puro
+                cmd_vel.linear.x = self.kp_linear * distance
+                cmd_vel.angular.z = self.kp_angular * heading_error
+            
+            # Saturação (Limita as velocidades máximas)
+            cmd_vel.angular.z = max(min(cmd_vel.angular.z, self.max_angular_vel), -self.max_angular_vel)
+            cmd_vel.linear.x = max(min(cmd_vel.linear.x, self.max_linear_vel), -self.max_linear_vel)
+
+            # Envia o comando para a interface
+            self.pub_cmd_vel.publish(cmd_vel)
+            self.rate.sleep()
+
+
+    def runAstar(self, goal = GOAL):
+        path = self.AS.search(start, goal)
+        if len(path) > 0:
+            print("Caminho encontrado!")
+
+    def stop_robot(self):
+        """Envia velocidade zero."""
+        cmd_vel = Twist()
+        self.pub_cmd_vel.publish(cmd_vel)
+            
+
+# ==========================================
+# EXECUÇÃO PRINCIPAL
+# ==========================================
+if __name__ == '__main__':
+    try:
+        nav = NavNode()
+
+        rospy.loginfo("Aguardando os dados de odometria do robô...")
+        while not nav.odom_received and not rospy.is_shutdown():
+            nav.rate.sleep()
+
+        rospy.loginfo(f"Posição inicial recebida: x={nav.x:.2f}, y={nav.y:.2f}")
+
+        # Onde o robô está agora na perspectiva do mapa?
+        start_grid = nav.world_to_grid(nav.x, nav.y)
+
+        rospy.loginfo(f"Calculando rota A* de {start_grid} para {goal_grid}...")
+        path_grid = nav.runAstar(start_grid)
+
+        if path_grid is None:
+            rospy.logerr("Caminho não encontrado! Verifique os obstáculos.")
+        else:
+            rospy.loginfo(f"Caminho encontrado com {len(path_grid)} passos.")
+            
+            # ---------------------------------------------------------
+            # Execução (Navegação waypoint a waypoint)
+            # ---------------------------------------------------------
+            # Ignoramos o primeiro ponto pois é onde o robô já está
+            for point in path_grid[1:]:
+                if rospy.is_shutdown():
+                    break
+                
+                # Converte o ponto do grid A* para coordenadas X,Y métricas
+                world_x, world_y = nav.grid_to_world(point[0], point[1])
+                
+                # Manda o robô para esse ponto
+                nav.control(world_x, world_y)
+
+            rospy.loginfo("Destino alcançado!")
+            nav.stop_robot()
+
+    except rospy.ROSInterruptException:
+        pass
+
+
 

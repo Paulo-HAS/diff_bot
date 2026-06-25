@@ -6,8 +6,8 @@ import numpy as np
 
 ROBOT = {
     'L' : 0.331, #m
-    'VELSTD' : 1.0 #m/s
-    
+    'VELSTD' : 1.0, #m/s
+    'R' : 0.0975 #m (raio da roda do Pioneer P3DX)
 }
 
 
@@ -229,13 +229,26 @@ class PioneerP3DX:
 
     # seta velocidades
     def setVel(self, vref, wref):
+        # Aplica o filtro
         self.vref = self.vref_maf.filter(vref)     
         self.wref = self.wref_maf.filter(wref) 
 
-        # vel_lin = (Vl + Vr)/2 e Vl = Vr
-        l_diff, r_diff = self.diffVel(wref)
-        self.setULeft(self.vref + l_diff)
-        self.setURight(self.vref + r_diff)
+        # Calcula a diferença de velocidade linear para cada roda (em m/s)
+        # Usamos self.wref (o valor já filtrado)
+        l_diff, r_diff = self.diffVel(self.wref)
+        
+        # Calcula a velocidade linear de cada roda
+        v_left = self.vref + l_diff
+        v_right = self.vref + r_diff
+        
+        # Converte a velocidade linear (m/s) para angular (rad/s) dividindo pelo Raio
+        R = ROBOT['R']
+        u_left = v_left / R
+        u_right = v_right / R
+        
+        # Envia a velocidade angular para os motores
+        self.setULeft(u_left)
+        self.setURight(u_right)
         
 
 
