@@ -13,9 +13,12 @@ MAP_SIZE = 25       #Tamanho do mapa (n x n)
 GOAL = (22, 22)     # celula de destino
 
 class Cell:
-    def __init__(self, position, g, parent=None):
+    def __init__(self, position, g, h, parent=None):
         self.pos = position
         self.parent = parent
+        self.g = g # Custo do início até este nó
+        self.h = h # Custo estimado deste nó até o objetivo (Heurística)
+        self.f = g + h # Custo total (g + h)
 
 class GVDBrushfire:
     def __init__(self, grid):
@@ -37,6 +40,9 @@ class GVDBrushfire:
         for dx, dy in directions:
             nx = x + dx
             ny = y + dy
+            if not (0 <= nx < self.max_x and 0 <= ny < self.max_y):
+                continue
+
             if origin[nx][ny] != -1:
                 origin[x][y] = origin[nx][ny]
         if origin[x][y] == -1:
@@ -107,18 +113,18 @@ class GVDBrushfire:
         
         # propagação
         while Q:
-            x,y in Q.pop(0)
+            x,y = Q.pop(0)
             for dx, dy in directions:
                 nx = x + dx
                 ny = y + dy
-                if not (nx < self.max_x and ny < self.max_y):
+                if not (0 <= nx < self.max_x and 0 <= ny < self.max_y):
                     continue
 
                 if brush[nx][ny] != -1:
                     if origin[nx][ny] != origin[x][y]:
-                        gvd[x][y] = 1       # se os brushfire de dois obstaculos colidem
+                        if abs(brush[nx][ny] - brush[x][y]) <= 2:
+                            gvd[x][y] = 1   # se os brushfire de dois obstaculos colidem
                     continue                # então é uma celula do roadmap gvd
-
                 brush[nx][ny] = brush[x][y] + 1
                 origin[nx][ny] = origin[x][y]
                 Q.append((nx,ny))
@@ -128,8 +134,7 @@ class GVDBrushfire:
         print(gvd)
         return brush, origin, gvd
 
-
-
+    # busca usando A* no roadmap
     def search(self, start, goal):
 
         st_h = abs(start[0] - goal[0]) + abs(start[1] - goal[1])
@@ -172,8 +177,8 @@ class GVDBrushfire:
                     if n_pos[0] >(self.max_x - 1) or n_pos[0] < 0 or n_pos[1] > (self.max_y - 1) or n_pos[1] < 0:
                         continue
 
-                    # verifica se é obstáculo
-                    if self.grid[n_pos[0]][n_pos[1]] != 0:
+                    # verifica se é parte do GVD
+                    if self.gvdmap[n_pos[0]][n_pos[1]] != 1:
                         continue
 
                     # verifica se ja está na lista fechada C
@@ -203,7 +208,7 @@ class GVDBrushfire:
                     
 
                     self.O.append(n_cell)
-                    if len(self.O) % 1000 == 0:
+                    if len(self.O) % 1000 == 0:     #testa para ver se a busca esta muito longa
                         print("OPEN =", len(self.O))
                     
         return  None    # Retorna nada caso não exista um caminho
@@ -211,7 +216,7 @@ class GVDBrushfire:
 # Node do planner
 class NavNode:
     def __init__(self):
-        rospy.init_node("a_star", anonymous = True)
+        rospy.init_node("gvd", anonymous = True)
         rospy.Subscriber("/odom", Odometry, self.odomCallback)
         self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
@@ -223,7 +228,7 @@ class NavNode:
         for i in range(10, 20):
             self.grid[i][10] = 1 # Uma parede vertical
 
-        self.AS = Astar(self.grid)
+        self.roadmap = GVDBrushfire(self.grid)
 
         # Estado do robô
         self.x = 0.0
@@ -241,6 +246,8 @@ class NavNode:
         self.max_angular_vel = 1.0  # rad/s
 
         self.rate = rospy.Rate(SYS_RATE)
+
+        
 
 
     def odomCallback(self, data):
@@ -313,15 +320,41 @@ class NavNode:
             self.pub_cmd_vel.publish(cmd_vel)
             self.rate.sleep()
 
+    def nearestGVD(self, node):
+        best = None
+        best_dist = float('inf')
 
-    def runAstar(self, start, goal = GOAL):
-        path = self.AS.search(start, goal)
+        for x in range(MAP_SIZE):
+            for y in range(MAP_SIZE):
+
+                if self.roadmap.gvdmap[x][y] == 1:
+                    d = (x-node[0])**2 + (y-node[1])**2
+                    if d < best_dist:
+                        best_dist = d
+                        best = (x,y)
+        return best
+
+
+    def startGVD(self, start, goal):
+        gvd_start = self.nearestGVD(start)
+        gvd_goal = self.nearestGVD(goal)
+
+        #se dirige para o inicio
+        w_gvd_start = self.grid_to_world(gvd_start[0],gvd_start[1])
+        self.control(w_gvd_start[0], w_gvd_start[1])
+
+        path = self.roadmap.search(gvd_start, gvd_goal)
         if path is not None:
             print("Caminho encontrado!")
         else:
             print("Nenhum caminho encontrado!")
 
         return path
+    
+    def endGVD(self, goal):
+        rospy.loginfo("Roadmap percorrido. Seguindo para goal!")
+        w_goal = self.grid_to_world(goal[0], goal[1])
+        self.control(w_goal[0], w_goal[1])
 
     def stop_robot(self):
         """Envia velocidade zero."""
@@ -345,13 +378,13 @@ if __name__ == '__main__':
         # Onde o robô está agora na perspectiva do mapa?
         start_grid = nav.world_to_grid(nav.x, nav.y)
 
-        rospy.loginfo(f"Calculando rota A* de {start_grid} para {GOAL}...")
-        path_grid = nav.runAstar(start_grid)
+        rospy.loginfo(f"Iniciando rota pelo roadmap de {start_grid} para {GOAL}...")
+        path_grid = nav.startGVD(start_grid, GOAL)
 
         if path_grid is None:
             rospy.logerr("Caminho não encontrado! Verifique os obstáculos.")
         else:
-            rospy.loginfo(f"Caminho encontrado com {len(path_grid)} passos.")
+            rospy.loginfo(f"Caminho encontrado com {len(path_grid)} passos. Iniciando Roadmap!")
             
             # ---------------------------------------------------------
             # Execução (Navegação waypoint a waypoint)
@@ -367,6 +400,8 @@ if __name__ == '__main__':
                 # Manda o robô para esse ponto
                 nav.control(world_x, world_y)
 
+            
+            nav.endGVD(GOAL)
             rospy.loginfo("Destino alcançado!")
             nav.stop_robot()
 
