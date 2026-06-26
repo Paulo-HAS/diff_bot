@@ -13,24 +13,122 @@ MAP_SIZE = 25       #Tamanho do mapa (n x n)
 GOAL = (22, 22)     # celula de destino
 
 class Cell:
-    def __init__(self, position, g, h, parent=None):
+    def __init__(self, position, g, parent=None):
         self.pos = position
         self.parent = parent
-        self.g = g # Custo do início até este nó
-        self.h = h # Custo estimado deste nó até o objetivo (Heurística)
-        self.f = g + h # Custo total (g + h)
 
-class Astar:
+class GVDBrushfire:
     def __init__(self, grid):
         self.q_start = None
         self.q_goal = None
         self.O = []
         self.C = []
+        self.ob_count = 0 # contador dos obstaculos
 
         self.grid = grid
 
         self.max_y = len(grid)
         self.max_x = len(grid[0])
+
+        self.brushmap, self.originmap, self.gvdmap = self.brushfire(grid)
+
+    def origin_pointer(self, origin, x, y, directions):
+        #diferencia os ponteiros dos obstáculos
+        for dx, dy in directions:
+            nx = x + dx
+            ny = y + dy
+            if origin[nx][ny] != -1:
+                origin[x][y] = origin[nx][ny]
+        if origin[x][y] == -1:
+            self.ob_count += 1
+            origin[x][y] = self.ob_count
+        return origin
+
+
+    def brushfire(self, grid):
+        """Gera o roadmap gvd por brushfire"""
+        # todas as posições são inicialmente -1
+        brush = np.full((MAP_SIZE, MAP_SIZE), -1)
+        origin = np.full((MAP_SIZE, MAP_SIZE), -1)
+        gvd = np.full((MAP_SIZE, MAP_SIZE), 0)  # roadmap inicia zerado
+
+        Q = []
+
+        directions = [
+            ( 0, -1),   #cima
+            ( 0,  1),   #baixo
+            (-1,  0),   #esquerda
+            ( 1,  0),   #direita
+            (-1, -1),   #cima-esquerda
+            ( 1, -1),   #cima-direita
+            ( 1,  1),   #baixo-direita
+            (-1,  1)    #baixo-esquerda
+        ]
+
+        #inicializa as celulas 
+        #obstáculos
+        
+
+        for x in range(MAP_SIZE):
+            for y in range(MAP_SIZE):
+                if grid[x][y] == 1:
+                    brush[x][y] = 0
+                    origin = self.origin_pointer(origin, x, y, directions)
+
+                    Q.append((x,y))
+
+        #bordas
+        for x in range(MAP_SIZE):
+            # borda inferior
+            if brush[x][0] == -1:
+                brush[x][0] = 2
+                origin = self.origin_pointer(origin, x, 0, directions)
+                Q.append((x,0))
+
+            # borda superior
+            if brush[x][MAP_SIZE-1] == -1:
+                brush[x][MAP_SIZE-1] = 2
+                origin = self.origin_pointer(origin, x, MAP_SIZE-1, directions)
+                Q.append((x,MAP_SIZE-1))
+
+        for y in range(MAP_SIZE):
+            # borda esquerda
+            if brush[0][y] == -1:
+                brush[0][y] = 2
+                origin = self.origin_pointer(origin, 0, y, directions)
+                Q.append((0,y))
+
+            # borda direita
+            if brush[MAP_SIZE-1][y] == -1:
+                brush[MAP_SIZE-1][y] = 2
+                origin = self.origin_pointer(origin, MAP_SIZE-1, y, directions)
+                Q.append((MAP_SIZE-1,y))
+
+        
+        # propagação
+        while Q:
+            x,y in Q.pop(0)
+            for dx, dy in directions:
+                nx = x + dx
+                ny = y + dy
+                if not (nx < self.max_x and ny < self.max_y):
+                    continue
+
+                if brush[nx][ny] != -1:
+                    if origin[nx][ny] != origin[x][y]:
+                        gvd[x][y] = 1       # se os brushfire de dois obstaculos colidem
+                    continue                # então é uma celula do roadmap gvd
+
+                brush[nx][ny] = brush[x][y] + 1
+                origin[nx][ny] = origin[x][y]
+                Q.append((nx,ny))
+        print("Mapa brushfire:")
+        print(brush)
+        print("Roadmap:")
+        print(gvd)
+        return brush, origin, gvd
+
+
 
     def search(self, start, goal):
 
