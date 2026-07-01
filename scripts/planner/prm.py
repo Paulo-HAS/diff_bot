@@ -275,7 +275,7 @@ class NavNode:
 
         self.prm = PRM(self.grid)
 
-        self.prm.build_roadmap(n_samples=200,radius=5)
+        self.prm.build_roadmap(n_samples=100,radius=5)
 
         # Estado do robô
         self.x = 0.0
