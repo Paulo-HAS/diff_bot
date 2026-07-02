@@ -6,6 +6,7 @@ from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 
 
+
 SYS_RATE = 15
 
 goal = np.array([-9.1, -2.6])      #goal (x, y)
